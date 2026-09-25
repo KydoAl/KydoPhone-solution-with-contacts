@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Icon
 import android.net.Uri
+import android.os.Build
 import org.aust.dialer.InCallActivity
 import org.aust.dialer.MainActivity
 import org.aust.dialer.R
@@ -80,8 +81,10 @@ object CallNotifications {
         info.name ?: if (PhoneUtils.isUnknown(info.number)) c.getString(R.string.recents_private) else Format.number(info.number)
 
     private fun inCallIntent(context: Context, requestCode: Int, answer: Boolean): PendingIntent {
-        val intent = Intent(context, InCallActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (answer) intent.putExtra(EXTRA_ANSWER, true)
+        val intent = Intent(context, InCallActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            if (answer) putExtra(EXTRA_ANSWER, true)
+        }
         return PendingIntent.getActivity(context, requestCode, intent, PI_FLAGS)
     }
 
@@ -99,6 +102,19 @@ object CallNotifications {
             Intent(context, NotificationActionReceiver::class.java).setAction(ACTION_DECLINE).putExtra(EXTRA_CALL_ID, info.id),
             PI_FLAGS,
         )
+
+        // Android 12+ (minSdk 31+) native CallStyle produces the highest-priority system keyguard wake/UI presentation
+        val person = android.app.Person.Builder()
+            .setName(title(c, info))
+            .setImportant(true)
+            .build()
+
+        val callStyle = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Notification.CallStyle.forIncomingCall(person, decline, answer)
+        } else {
+            TODO("VERSION.SDK_INT < S")
+        }
+
         val builder = Notification.Builder(context, CH_INCOMING)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title(c, info))
@@ -108,10 +124,9 @@ object CallNotifications {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(open)
-            .addAction(action(c, R.string.notif_action_decline, decline))
-            .addAction(action(c, R.string.notif_action_answer, answer))
-        // Only the first post may launch the full-screen UI; later updates (e.g. name resolved) must not re-launch it.
-        if (firstPost) builder.setFullScreenIntent(open, true)
+            .setStyle(callStyle)
+            .setFullScreenIntent(open, true)
+
         try {
             nm.notify(ID_CALL, builder.build())
         } catch (e: RuntimeException) {
@@ -130,6 +145,17 @@ object CallNotifications {
             PI_FLAGS,
         )
         val active = info.status == CallStatus.ACTIVE && info.connectTimeMillis > 0
+
+        val person = android.app.Person.Builder()
+            .setName(title(c, info))
+            .build()
+
+        val callStyle = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Notification.CallStyle.forOngoingCall(person, hangup)
+        } else {
+            TODO("VERSION.SDK_INT < S")
+        }
+
         val builder = Notification.Builder(context, CH_ONGOING)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title(c, info))
@@ -139,7 +165,8 @@ object CallNotifications {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(open)
-            .addAction(action(c, R.string.notif_action_hangup, hangup))
+            .setStyle(callStyle)
+
         if (active) {
             builder.setUsesChronometer(true).setWhen(info.connectTimeMillis).setShowWhen(true)
         }

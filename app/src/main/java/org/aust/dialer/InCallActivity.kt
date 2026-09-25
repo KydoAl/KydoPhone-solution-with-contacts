@@ -1,7 +1,9 @@
 package org.aust.dialer
 
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.view.WindowManager
@@ -31,8 +33,13 @@ class InCallActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Ensure window flags turn screen on and show over keyguard
         setShowWhenLocked(true)
         setTurnScreenOn(true)
+        val keyguardManager = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
+        keyguardManager.requestDismissKeyguard(this, null)
+
+        // Keep screen awake during call setup
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
