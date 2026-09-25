@@ -1,13 +1,14 @@
 package org.aust.dialer.ui
 
 import android.Manifest
+import android.net.Uri
 import android.telecom.PhoneAccountHandle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -29,7 +30,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import android.net.Uri
 import kotlinx.coroutines.launch
 import org.aust.dialer.DialerViewModel
 import org.aust.dialer.IntentRequest
@@ -42,7 +42,13 @@ import org.aust.dialer.ui.sms.ComposeScreen
 import org.aust.dialer.ui.sms.ThreadScreen
 
 @Composable
-fun AppRoot(vm: DialerViewModel, smsVm: SmsViewModel, prefs: Prefs, request: IntentRequest?, onConsumed: () -> Unit) {
+fun AppRoot(
+    vm: DialerViewModel,
+    smsVm: SmsViewModel,
+    prefs: Prefs,
+    request: IntentRequest?,
+    onConsumed: () -> Unit
+) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -53,8 +59,6 @@ fun AppRoot(vm: DialerViewModel, smsVm: SmsViewModel, prefs: Prefs, request: Int
     var tab by rememberSaveable { mutableIntStateOf(TAB_RECENTS) }
     var number by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
 
-    // SMS can be opened from the Messages tab, Compose, or a notification.
-    // Always return to the Messages tab instead of depending on the current back-stack shape.
     fun backToMessages() {
         tab = TAB_MESSAGES
         nav.navigate("home") {
@@ -81,19 +85,28 @@ fun AppRoot(vm: DialerViewModel, smsVm: SmsViewModel, prefs: Prefs, request: Int
         }
     }
 
-    // Multi-SIM: use the system's "always use this SIM" choice when set, otherwise ask.
     fun proceed(n: String) {
         val accounts = CallPlacer.simAccounts(context)
         val def = CallPlacer.defaultAccount(context)
-        if (accounts.size > 1 && def == null) simChoice = n to accounts else place(n, def)
+        if (accounts.size > 1 && def == null) {
+            simChoice = n to accounts
+        } else {
+            place(n, def)
+        }
     }
 
-    val callPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+    val callPermLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) {
         vm.refreshPermissions()
         val n = pendingNumber
         pendingNumber = null
         if (n != null) {
-            if (CallPlacer.hasCallPermission(context)) proceed(n) else show(errPerm)
+            if (CallPlacer.hasCallPermission(context)) {
+                proceed(n)
+            } else {
+                show(errPerm)
+            }
         }
     }
 
@@ -103,14 +116,19 @@ fun AppRoot(vm: DialerViewModel, smsVm: SmsViewModel, prefs: Prefs, request: Int
             proceed(n)
         } else {
             pendingNumber = n
-            callPermLauncher.launch(arrayOf(Manifest.permission.CALL_PHONE, Manifest.permission.READ_PHONE_STATE))
+            callPermLauncher.launch(
+                arrayOf(Manifest.permission.CALL_PHONE, Manifest.permission.READ_PHONE_STATE)
+            )
         }
     }
 
     SideEffect { controller.impl = { n -> startCall(n) } }
-    SideEffect { messageController.impl = { address -> nav.navigate("thread/" + Uri.encode(address)) } }
+    SideEffect {
+        messageController.impl = { address ->
+            nav.navigate("thread/${Uri.encode(address)}")
+        }
+    }
 
-    // Intents from outside (tel: links, notification actions).
     LaunchedEffect(request) {
         val r = request ?: return@LaunchedEffect
         r.tab?.let { tab = it }
@@ -133,23 +151,35 @@ fun AppRoot(vm: DialerViewModel, smsVm: SmsViewModel, prefs: Prefs, request: Int
     ) {
         val slide = AnimatedContentTransitionScope.SlideDirection.Start
         val slideBack = AnimatedContentTransitionScope.SlideDirection.End
+
         NavHost(
-            nav,
+            navController = nav,
             startDestination = if (prefs.setupDone) "home" else "setup",
-            // Direction-aware: slides the right way in Arabic (RTL) too.
             enterTransition = { slideIntoContainer(slide, tween(180)) + fadeIn(tween(180)) },
             exitTransition = { slideOutOfContainer(slide, tween(180), targetOffset = { it / 4 }) + fadeOut(tween(180)) },
             popEnterTransition = { slideIntoContainer(slideBack, tween(180), initialOffset = { it / 4 }) + fadeIn(tween(180)) },
             popExitTransition = { slideOutOfContainer(slideBack, tween(180)) + fadeOut(tween(180)) },
         ) {
             composable("setup") {
-                SetupScreen(vm, smsVm, onDone = {
-                    prefs.setupDone = true
-                    nav.navigate("home") { popUpTo("setup") { inclusive = true } }
-                })
+                SetupScreen(
+                    vm = vm,
+                    smsVm = smsVm,
+                    onDone = {
+                        prefs.setupDone = true
+                        nav.navigate("home") { popUpTo("setup") { inclusive = true } }
+                    }
+                )
             }
             composable("home") {
-                HomeScreen(vm, smsVm, tab, { tab = it }, number, { number = it }, nav)
+                HomeScreen(
+                    vm = vm,
+                    smsVm = smsVm,
+                    tab = tab,
+                    onTabChange = { tab = it },
+                    number = number,
+                    onNumberChange = { number = it },
+                    nav = nav
+                )
             }
             composable("contact/new") {
                 ContactEditorScreen(
@@ -162,7 +192,10 @@ fun AppRoot(vm: DialerViewModel, smsVm: SmsViewModel, prefs: Prefs, request: Int
                     },
                 )
             }
-            composable("contact/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+            composable(
+                route = "contact/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.LongType })
+            ) { entry ->
                 val id = entry.arguments?.getLong("id") ?: -1L
                 ContactDetailScreen(
                     vm = vm,
@@ -171,7 +204,10 @@ fun AppRoot(vm: DialerViewModel, smsVm: SmsViewModel, prefs: Prefs, request: Int
                     onEdit = { nav.navigate("contact/$id/edit") },
                 )
             }
-            composable("contact/{id}/edit", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+            composable(
+                route = "contact/{id}/edit",
+                arguments = listOf(navArgument("id") { type = NavType.LongType })
+            ) { entry ->
                 val id = entry.arguments?.getLong("id") ?: -1L
                 ContactEditorScreen(
                     vm = vm,
@@ -181,25 +217,35 @@ fun AppRoot(vm: DialerViewModel, smsVm: SmsViewModel, prefs: Prefs, request: Int
                 )
             }
             composable("speeddial") {
-                SpeedDialScreen(vm, onBack = { nav.popBackStack() })
+                SpeedDialScreen(vm = vm, onBack = { nav.popBackStack() })
             }
             composable("settings") {
-                SettingsScreen(vm, smsVm, onBack = { nav.popBackStack() }, onSpeedDial = { nav.navigate("speeddial") })
+                SettingsScreen(
+                    vm = vm,
+                    smsVm = smsVm,
+                    onBack = { nav.popBackStack() },
+                    onSpeedDial = { nav.navigate("speeddial") }
+                )
             }
             composable(
-                "thread/{address}",
+                route = "thread/{address}",
                 arguments = listOf(navArgument("address") { type = NavType.StringType }),
             ) { entry ->
                 val address = Uri.decode(entry.arguments?.getString("address").orEmpty())
-                ThreadScreen(vm, smsVm, address, onBack = ::backToMessages)
+                ThreadScreen(
+                    dialerVm = vm,
+                    smsVm = smsVm,
+                    address = address,
+                    onBack = ::backToMessages
+                )
             }
             composable("compose") {
                 ComposeScreen(
-                    vm,
+                    dialerVm = vm,
                     onBack = ::backToMessages,
                     onOpenThread = { address ->
                         nav.popBackStack()
-                        nav.navigate("thread/" + Uri.encode(address))
+                        nav.navigate("thread/${Uri.encode(address)}")
                     },
                 )
             }

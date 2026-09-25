@@ -1,35 +1,45 @@
 package org.aust.dialer.ui
 
 import android.Manifest
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -39,10 +49,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import org.aust.dialer.DialerViewModel
 import org.aust.dialer.R
@@ -56,13 +68,18 @@ private fun ContactField(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     iconTint: androidx.compose.ui.graphics.Color,
 ) {
-    TextField(
+    OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
         label = { Text(label) },
         leadingIcon = { Icon(icon, contentDescription = null, tint = iconTint) },
+        shape = RoundedCornerShape(16.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+        )
     )
 }
 
@@ -116,77 +133,206 @@ fun ContactEditorScreen(vm: DialerViewModel, contactId: Long?, onBack: () -> Uni
     }
 
     Scaffold(
-        topBar = { TopAppBar(
-            title = { Text(stringResource(if (editing) R.string.contact_edit else R.string.contact_new)) },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } },
-            actions = { TextButton(onClick = ::save, enabled = !saving) { Text(stringResource(R.string.action_save)) } },
-        ) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(if (editing) R.string.contact_edit else R.string.contact_new), fontWeight = FontWeight.SemiBold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                    }
+                },
+                actions = {
+                    Button(
+                        onClick = ::save,
+                        enabled = !saving,
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Text(stringResource(R.string.action_save))
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            )
+        },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding).imePadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .imePadding(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             item {
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (!perms.writeContacts) MessageCard(stringResource(R.string.contacts_write_permission_text), stringResource(R.string.action_grant), requestWrite)
-                    ContactField(
-                        value = given,
-                        onValueChange = { given = it },
-                        label = stringResource(R.string.contact_first_name),
-                        icon = Icons.Default.Person,
-                        iconTint = MaterialTheme.colorScheme.primary,
-                    )
-                    ContactField(
-                        value = middle,
-                        onValueChange = { middle = it },
-                        label = stringResource(R.string.contact_middle_name),
-                        icon = Icons.Default.Person,
-                        iconTint = MaterialTheme.colorScheme.secondary,
-                    )
-                    ContactField(
-                        value = family,
-                        onValueChange = { family = it },
-                        label = stringResource(R.string.contact_last_name),
-                        icon = Icons.Default.Person,
-                        iconTint = MaterialTheme.colorScheme.primary,
-                    )
-                    ContactField(
-                        value = suffix,
-                        onValueChange = { suffix = it },
-                        label = stringResource(R.string.contact_suffix),
-                        icon = Icons.Default.Badge,
-                        iconTint = MaterialTheme.colorScheme.tertiary,
-                    )
-                    ContactField(
-                        value = company,
-                        onValueChange = { company = it },
-                        label = stringResource(R.string.contact_company),
-                        icon = Icons.Default.Business,
-                        iconTint = MaterialTheme.colorScheme.tertiary,
-                    )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (!perms.writeContacts) {
+                        MessageCard(stringResource(R.string.contacts_write_permission_text), stringResource(R.string.action_grant), requestWrite)
+                    }
+
+                    // Contact Name Details Card
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.contact_first_name),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            ContactField(
+                                value = given,
+                                onValueChange = { given = it },
+                                label = stringResource(R.string.contact_first_name),
+                                icon = Icons.Default.Person,
+                                iconTint = MaterialTheme.colorScheme.primary,
+                            )
+                            ContactField(
+                                value = middle,
+                                onValueChange = { middle = it },
+                                label = stringResource(R.string.contact_middle_name),
+                                icon = Icons.Default.Person,
+                                iconTint = MaterialTheme.colorScheme.secondary,
+                            )
+                            ContactField(
+                                value = family,
+                                onValueChange = { family = it },
+                                label = stringResource(R.string.contact_last_name),
+                                icon = Icons.Default.Person,
+                                iconTint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+
+                    // Organization Details Card
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.contact_company),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            ContactField(
+                                value = suffix,
+                                onValueChange = { suffix = it },
+                                label = stringResource(R.string.contact_suffix),
+                                icon = Icons.Default.Badge,
+                                iconTint = MaterialTheme.colorScheme.tertiary,
+                            )
+                            ContactField(
+                                value = company,
+                                onValueChange = { company = it },
+                                label = stringResource(R.string.contact_company),
+                                icon = Icons.Default.Business,
+                                iconTint = MaterialTheme.colorScheme.tertiary,
+                            )
+                        }
+                    }
+
                     AnimatedVisibility(visible = error != null) {
-                        error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
-                    }
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Default.Call, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Text(stringResource(R.string.contact_numbers), style = MaterialTheme.typography.titleMedium)
+                        error?.let {
+                            Text(
+                                text = it,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            )
+                        }
                     }
                 }
             }
-            itemsIndexed(numbers) { i, number ->
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextField(
-                        number,
-                        { numbers[i] = it },
-                        Modifier.weight(1f),
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.contact_phone, i + 1)) },
-                        leadingIcon = { Icon(Icons.Default.Call, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                    )
-                    IconButton(onClick = { if (numbers.size > 1) numbers.removeAt(i) }, enabled = numbers.size > 1) { Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.contact_remove_number)) }
-                }
-            }
+
+            // Phone Numbers Card
             item {
-                OutlinedButton(onClick = { numbers.add("") }, Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { Icon(Icons.Default.Add, contentDescription = null); Text(stringResource(R.string.contact_add_number), Modifier.padding(start = 8.dp)) }
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Default.Call, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Text(
+                                stringResource(R.string.contact_numbers),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        numbers.forEachIndexed { i, number ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = number,
+                                    onValueChange = { numbers[i] = it },
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true,
+                                    label = { Text(stringResource(R.string.contact_phone, i + 1)) },
+                                    leadingIcon = { Icon(Icons.Default.Call, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                                    )
+                                )
+                                IconButton(
+                                    onClick = { if (numbers.size > 1) numbers.removeAt(i) },
+                                    enabled = numbers.size > 1
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = stringResource(R.string.contact_remove_number),
+                                        tint = if (numbers.size > 1) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                    )
+                                }
+                            }
+                        }
+
+                        OutlinedButton(
+                            onClick = { numbers.add("") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.contact_add_number))
+                        }
+                    }
+                }
             }
         }
     }

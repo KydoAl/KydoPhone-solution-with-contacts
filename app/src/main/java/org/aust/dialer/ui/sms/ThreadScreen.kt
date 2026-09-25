@@ -2,6 +2,7 @@ package org.aust.dialer.ui.sms
 
 import android.Manifest
 import android.content.Intent
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -10,12 +11,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,11 +29,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.AlertDialog
@@ -41,11 +45,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -59,6 +66,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -141,11 +149,21 @@ fun ThreadScreen(dialerVm: DialerViewModel, smsVm: SmsViewModel, address: String
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Avatar(contact?.name ?: address, contact?.thumbUri, 32.dp)
-                        Column(Modifier.padding(start = 8.dp)) {
-                            Text(title, maxLines = 1, style = MaterialTheme.typography.titleMedium)
+                        Avatar(contact?.name ?: address, contact?.thumbUri, 36.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                title,
+                                maxLines = 1,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
                             if (contact != null) {
-                                Text(Format.ltr(Format.number(address)), style = MaterialTheme.typography.labelSmall)
+                                Text(
+                                    Format.ltr(Format.number(address)),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
@@ -155,16 +173,24 @@ fun ThreadScreen(dialerVm: DialerViewModel, smsVm: SmsViewModel, address: String
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.action_back),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 },
                 actions = {
                     IconButton(onClick = { callController.call(address) }) {
-                        Icon(Icons.Default.Call, contentDescription = stringResource(R.string.action_call), tint = MaterialTheme.colorScheme.primary)
+                        Icon(
+                            Icons.Default.Call,
+                            contentDescription = stringResource(R.string.action_call),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                     IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more))
+                        Icon(
+                            Icons.Default.MoreVert,
+                            contentDescription = stringResource(R.string.action_more),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
@@ -186,39 +212,67 @@ fun ThreadScreen(dialerVm: DialerViewModel, smsVm: SmsViewModel, address: String
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text(stringResource(R.string.sms_delete_conversation)) },
+                            text = { Text(stringResource(R.string.sms_delete_conversation), color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                             onClick = { menuOpen = false; confirmDeleteThread = true },
                         )
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            Row(
-                Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(8.dp),
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Surface(
+                color = Color.Transparent,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .imePadding()
             ) {
-                OutlinedTextField(
-                    value = draft,
-                    onValueChange = { draft = it },
-                    placeholder = { Text(stringResource(R.string.sms_type_message)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(24.dp),
-                    maxLines = 5,
-                )
-                FilledIconButton(onClick = { doSend() }, enabled = draft.isNotBlank()) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.action_send))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        placeholder = { Text(stringResource(R.string.sms_type_message)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(24.dp),
+                        maxLines = 5,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                        )
+                    )
+                    FilledIconButton(
+                        onClick = { doSend() },
+                        enabled = draft.isNotBlank(),
+                        modifier = Modifier.size(52.dp)
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Send,
+                            contentDescription = stringResource(R.string.action_send)
+                        )
+                    }
                 }
             }
         },
     ) { padding ->
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             items(messages, key = { it.id }) { msg ->
                 MessageBubble(
@@ -239,7 +293,7 @@ fun ThreadScreen(dialerVm: DialerViewModel, smsVm: SmsViewModel, address: String
                 TextButton(onClick = {
                     confirmDeleteThread = false
                     smsVm.deleteThread(threadId) { ok -> if (ok) onBack() }
-                }) { Text(stringResource(R.string.action_delete)) }
+                }) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { confirmDeleteThread = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
@@ -255,7 +309,7 @@ fun ThreadScreen(dialerVm: DialerViewModel, smsVm: SmsViewModel, address: String
                     smsVm.deleteMessage(msg.id, threadId) { ok ->
                         scope.launch { snackbar.showSnackbar(if (ok) deletedMsg else "") }
                     }
-                }) { Text(stringResource(R.string.action_delete)) }
+                }) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { confirmDeleteMessage = null }) { Text(stringResource(R.string.action_cancel)) } },
         )
@@ -274,6 +328,7 @@ fun ThreadScreen(dialerVm: DialerViewModel, smsVm: SmsViewModel, address: String
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(msg: SmsMessage, onLongClick: () -> Unit, onRetry: () -> Unit) {
     val outgoing = msg.isOutgoing
@@ -282,30 +337,68 @@ private fun MessageBubble(msg: SmsMessage, onLongClick: () -> Unit, onRetry: () 
         outgoing -> MaterialTheme.colorScheme.primaryContainer
         else -> MaterialTheme.colorScheme.surfaceContainerHigh
     }
-    val fg = if (msg.isFailed) MaterialTheme.colorScheme.onErrorContainer else if (outgoing) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+    val fg = when {
+        msg.isFailed -> MaterialTheme.colorScheme.onErrorContainer
+        outgoing -> MaterialTheme.colorScheme.onPrimaryContainer
+        else -> MaterialTheme.colorScheme.onSurface
+    }
 
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (outgoing) Arrangement.End else Arrangement.Start) {
+    val bubbleShape = if (outgoing) {
+        RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 4.dp)
+    } else {
+        RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 4.dp, bottomEnd = 20.dp)
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (outgoing) Arrangement.End else Arrangement.Start
+    ) {
         Column(
             Modifier
-                .widthIn(max = 280.dp)
-                .background(bg, RoundedCornerShape(18.dp))
+                .widthIn(max = 290.dp)
+                .background(bg, bubbleShape)
                 .combinedClickable(onClick = {}, onLongClick = onLongClick)
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
-            Text(msg.body, color = fg)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = msg.body,
+                color = fg,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.align(Alignment.End)
+            ) {
                 Text(
-                    Format.callTime(LocalContext.current, msg.date),
+                    text = Format.callTime(LocalContext.current, msg.date),
                     style = MaterialTheme.typography.labelSmall,
                     color = fg.copy(alpha = 0.7f),
                 )
                 if (msg.isFailed) {
-                    Icon(Icons.Default.Error, contentDescription = null, modifier = Modifier.height(12.dp), tint = MaterialTheme.colorScheme.error)
+                    Icon(
+                        Icons.Default.Error,
+                        contentDescription = null,
+                        modifier = Modifier.height(14.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
                 }
             }
             if (msg.isFailed) {
-                TextButton(onClick = onRetry, modifier = Modifier.height(28.dp)) {
-                    Text(stringResource(R.string.sms_retry), style = MaterialTheme.typography.labelSmall)
+                Spacer(modifier = Modifier.height(4.dp))
+                TextButton(
+                    onClick = onRetry,
+                    modifier = Modifier
+                        .height(32.dp)
+                        .align(Alignment.End)
+                ) {
+                    Text(
+                        stringResource(R.string.sms_retry),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
         }

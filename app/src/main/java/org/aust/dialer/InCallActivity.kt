@@ -14,7 +14,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import org.aust.dialer.core.LocaleHelper
-import org.aust.dialer.core.Prefs
 import org.aust.dialer.telecom.CallManager
 import org.aust.dialer.telecom.CallNotifications
 import org.aust.dialer.ui.InCallScreen
@@ -33,35 +32,46 @@ class InCallActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         // Ensure window flags turn screen on and show over keyguard
-        setShowWhenLocked(true)
-        setTurnScreenOn(true)
-        val keyguardManager = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
-        keyguardManager.requestDismissKeyguard(this, null)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+            val keyguardManager = getSystemService(KeyguardManager::class.java)
+            keyguardManager?.requestDismissKeyguard(this, null)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                        WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+            )
+        }
 
         // Keep screen awake during call setup
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
         )
+
         handleIntent(intent)
 
         val prefs = dialerApp.prefs
         setContent {
             val themeMode by prefs.themeMode.collectAsState()
             val dynamic by prefs.dynamicColor.collectAsState()
-            KydoPhoneTheme(themeMode, dynamic) {
+
+            KydoPhoneTheme(
+                themeMode,
+                dynamicColor = dynamic
+            ) {
                 InCallScreen(
                     onFinish = { finish() },
-                    onAddCall = {
-                        startActivity(
-                            Intent(this, MainActivity::class.java)
-                                .setAction(Intent.ACTION_DIAL)
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                    },
-                    onProximity = { setProximity(it) },
+                    onProximity = { isNear ->
+                        setProximity(isNear)
+                    }
                 )
             }
         }
@@ -75,6 +85,7 @@ class InCallActivity : ComponentActivity() {
 
     private fun handleIntent(i: Intent?) {
         if (i?.getBooleanExtra(CallNotifications.EXTRA_ANSWER, false) == true) {
+            i.putExtra(CallNotifications.EXTRA_ANSWER, false)
             i.removeExtra(CallNotifications.EXTRA_ANSWER)
             CallManager.answerRinging()
         }
@@ -85,16 +96,26 @@ class InCallActivity : ComponentActivity() {
             val pm = getSystemService(PowerManager::class.java) ?: return
             if (on) {
                 if (proximity == null && pm.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
-                    proximity = pm.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "KydoPhone:proximity")
-                        .also { it.acquire(2 * 60 * 60 * 1000L) }
+                    proximity = pm.newWakeLock(
+                        PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK,
+                        "KydoPhone:proximity"
+                    ).apply {
+                        acquire(2 * 60 * 60 * 1000L) // 2 hours max timeout safety
+                    }
                 }
             } else {
                 proximity?.let { if (it.isHeld) it.release() }
                 proximity = null
             }
-        } catch (e: RuntimeException) {
+        } catch (e: Exception) {
             proximity = null
         }
+    }
+
+    override fun onStop() {
+        // Release wake lock when activity goes to background to avoid hanging proximity sensors
+        setProximity(false)
+        super.onStop()
     }
 
     override fun onDestroy() {

@@ -1,30 +1,37 @@
 package org.aust.dialer.ui.sms
 
 import android.Manifest
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -38,10 +45,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.aust.dialer.DialerViewModel
 import org.aust.dialer.R
@@ -66,7 +75,10 @@ fun MessagesTab(dialerVm: DialerViewModel, smsVm: SmsViewModel, listState: LazyL
     var showBlocked by rememberSaveable { mutableStateOf(false) }
     var filterMenu by remember { mutableStateOf(false) }
 
-    if (!perms.readSms) { MessageCard(stringResource(R.string.sms_permission_text), stringResource(R.string.action_grant), request); return }
+    if (!perms.readSms) {
+        MessageCard(stringResource(R.string.sms_permission_text), stringResource(R.string.action_grant), request)
+        return
+    }
 
     val ordered = remember(conversations, pinned, blocked, search, showBlocked, index) {
         val q = PhoneUtils.fold(search.trim())
@@ -83,60 +95,187 @@ fun MessagesTab(dialerVm: DialerViewModel, smsVm: SmsViewModel, listState: LazyL
             .toList()
     }
 
-    Column {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             TextField(
-                value = search, onValueChange = { search = it }, singleLine = true,
+                value = search,
+                onValueChange = { search = it },
+                singleLine = true,
                 placeholder = { Text(stringResource(R.string.sms_search_hint)) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
-                    IconButton(onClick = { filterMenu = true }) {
-                        Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.sms_filter))
-                    }
-                    DropdownMenu(filterMenu, { filterMenu = false }) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(if (showBlocked) R.string.sms_hide_blocked else R.string.sms_show_blocked)) },
-                            leadingIcon = { Icon(Icons.Default.Block, contentDescription = null) },
-                            onClick = { showBlocked = !showBlocked; filterMenu = false },
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (search.isNotEmpty()) {
+                            IconButton(onClick = { search = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = null)
+                            }
+                        }
+                        IconButton(onClick = { filterMenu = true }) {
+                            Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.sms_filter))
+                        }
+                        DropdownMenu(expanded = filterMenu, onDismissRequest = { filterMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(if (showBlocked) R.string.sms_hide_blocked else R.string.sms_show_blocked)) },
+                                leadingIcon = { Icon(Icons.Default.Block, contentDescription = null) },
+                                onClick = {
+                                    showBlocked = !showBlocked
+                                    filterMenu = false
+                                }
+                            )
+                        }
                     }
                 },
                 shape = RoundedCornerShape(28.dp),
-                colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent),
-                modifier = Modifier.weight(1f),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent,
+                ),
+                modifier = Modifier.weight(1f)
             )
         }
+
         if (conversations.isEmpty()) {
             EmptyState(Icons.AutoMirrored.Filled.Message, stringResource(R.string.sms_empty), stringResource(R.string.sms_empty_hint))
         } else if (ordered.isEmpty()) {
             EmptyState(Icons.AutoMirrored.Filled.Message, stringResource(R.string.sms_no_matches))
         } else {
-            LazyColumn(state = listState) {
+            LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
                 items(ordered, key = { it.threadId }) { conv ->
                     val contact = index.findByNumber(conv.address)
-                    val name = contact?.name ?: conv.address
+                    val name = contact?.name ?: Format.number(conv.address)
                     var menuOpen by remember { mutableStateOf(false) }
                     val isPinned = conv.threadId in pinned
                     val isBlocked = PhoneUtils.senderKey(conv.address) in blocked
-                    ListItem(
-                        modifier = Modifier.clickable { onOpenThread(conv.address) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        leadingContent = { Avatar(contact?.name ?: conv.address, contact?.thumbUri, 44.dp) },
-                        headlineContent = { Row(verticalAlignment = Alignment.CenterVertically) { Text(name, maxLines = 1, fontWeight = if (conv.hasUnread) FontWeight.Bold else FontWeight.Normal); if (isBlocked) { Icon(Icons.Default.Block, null, Modifier.padding(start = 6.dp).size(15.dp), tint = MaterialTheme.colorScheme.error) } } },
-                        supportingContent = { val prefix = if (conv.outgoing) stringResource(R.string.sms_you_prefix) else ""; Text(prefix + conv.snippet, maxLines = 1, fontWeight = if (conv.hasUnread) FontWeight.Bold else FontWeight.Normal, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                        trailingContent = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (isPinned) Icon(Icons.Default.PushPin, stringResource(R.string.sms_unpin), Modifier.size(16.dp))
-                                Text(Format.callTime(context, conv.date), style = MaterialTheme.typography.labelSmall)
-                                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, stringResource(R.string.action_more)) }
-                                DropdownMenu(menuOpen, { menuOpen = false }) {
-                                    DropdownMenuItem(text = { Text(stringResource(if (isPinned) R.string.sms_unpin else R.string.sms_pin)) }, leadingIcon = { Icon(Icons.Default.PushPin, null) }, onClick = { menuOpen = false; smsVm.setThreadPinned(conv.threadId, !isPinned) })
-                                    DropdownMenuItem(text = { Text(stringResource(if (isBlocked) R.string.sms_unblock_sender else R.string.sms_block_sender)) }, leadingIcon = { Icon(Icons.Default.Block, null) }, onClick = { menuOpen = false; smsVm.setSenderBlocked(conv.address, !isBlocked) })
-                                    DropdownMenuItem(text = { Text(stringResource(R.string.sms_notification_settings)) }, leadingIcon = { Icon(Icons.Default.Notifications, null) }, onClick = { menuOpen = false; org.aust.dialer.sms.SmsNotifications.openConversationNotificationSettings(context, conv.threadId, name) })
+
+                    Card(
+                        onClick = { onOpenThread(conv.address) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (conv.hasUnread)
+                                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+                            else
+                                MaterialTheme.colorScheme.surfaceContainerLow
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box {
+                                Avatar(contact?.name ?: conv.address, contact?.thumbUri, 48.dp)
+                                if (conv.hasUnread) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(12.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.primary)
+                                            .align(Alignment.TopEnd)
+                                    )
                                 }
                             }
-                        },
-                    )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = if (conv.hasUnread) FontWeight.Bold else FontWeight.Normal,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    if (isBlocked) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(
+                                            Icons.Default.Block,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                    if (isPinned) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(
+                                            Icons.Default.PushPin,
+                                            contentDescription = stringResource(R.string.sms_unpin),
+                                            modifier = Modifier.size(14.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
+                                val prefix = if (conv.outgoing) stringResource(R.string.sms_you_prefix) else ""
+                                Text(
+                                    text = prefix + conv.snippet,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = if (conv.hasUnread) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (conv.hasUnread) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = Format.callTime(context, conv.date),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Box {
+                                    IconButton(
+                                        onClick = { menuOpen = true },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.MoreVert,
+                                            contentDescription = stringResource(R.string.action_more),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(if (isPinned) R.string.sms_unpin else R.string.sms_pin)) },
+                                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                                            onClick = {
+                                                menuOpen = false
+                                                smsVm.setThreadPinned(conv.threadId, !isPinned)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(if (isBlocked) R.string.sms_unblock_sender else R.string.sms_block_sender)) },
+                                            leadingIcon = { Icon(Icons.Default.Block, contentDescription = null) },
+                                            onClick = {
+                                                menuOpen = false
+                                                smsVm.setSenderBlocked(conv.address, !isBlocked)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.sms_notification_settings)) },
+                                            leadingIcon = { Icon(Icons.Default.Notifications, contentDescription = null) },
+                                            onClick = {
+                                                menuOpen = false
+                                                org.aust.dialer.sms.SmsNotifications.openConversationNotificationSettings(context, conv.threadId, name)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
